@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ImmunePrint — Cell Explorer</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0f1117; font-family:'Segoe UI',sans-serif; overflow:hidden; }
+
+#canvas-container { width:100vw; height:100vh; }
+
+/* ── Top bar ── */
+#topbar {
+  position:fixed; top:0; left:0; right:0;
+  display:flex; align-items:center;
+  justify-content:space-between;
+  padding:14px 28px;
+  background:rgba(15,17,23,0.85);
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid rgba(100,200,255,0.1);
+  z-index:50;
+}
+#topbar h1 { color:#64c8ff; font-size:1.2rem; letter-spacing:2px; }
+#topbar p { color:rgba(255,255,255,0.35); font-size:0.8rem; }
+
+/* ── Mode tabs ── */
+#mode-tabs {
+  position:fixed; top:70px; left:50%;
+  transform:translateX(-50%);
+  display:flex; gap:8px; z-index:50;
+}
+.tab-btn {
+  padding:8px 18px; border-radius:20px;
+  border:1px solid rgba(100,200,255,0.25);
+  background:rgba(15,17,23,0.8);
+  color:rgba(255,255,255,0.6);
+  cursor:pointer; font-size:0.82rem;
+  transition:all 0.2s;
+}
+.tab-btn.active {
+  background:rgba(100,200,255,0.15);
+  border-color:#64c8ff; color:#64c8ff;
+}
+
+/* ── Patient selector ── */
+#patient-bar {
+  position:fixed; top:120px; right:20px;
+  background:rgba(15,17,23,0.9);
+  border:1px solid rgba(100,200,255,0.2);
+  border-radius:12px; padding:14px;
+  z-index:50; width:240px;
+}
+#patient-bar label {
+  color:rgba(255,255,255,0.5);
+  font-size:0.75rem; display:block;
+  margin-bottom:6px;
+}
+#patient-select {
+  width:100%; background:#1a1a2e;
+  border:1px solid rgba(100,200,255,0.2);
+  color:white; padding:6px 10px;
+  border-radius:8px; font-size:0.8rem;
+  outline:none;
+}
+#synbio-btn {
+  width:100%; margin-top:10px;
+  padding:8px; border-radius:8px;
+  background:rgba(100,200,255,0.1);
+  border:1px solid rgba(100,200,255,0.3);
+  color:#64c8ff; cursor:pointer;
+  font-size:0.82rem; transition:all 0.2s;
+}
+#synbio-btn:hover { background:rgba(100,200,255,0.2); }
+
+/* ── Popup ── */
+#popup {
+  display:none; position:fixed;
+  top:50%; left:50%;
+  transform:translate(-50%,-50%);
+  background:rgba(15,17,23,0.97);
+  border:1px solid rgba(100,200,255,0.3);
+  border-radius:16px; padding:28px 32px;
+  max-width:500px; width:92%;
+  max-height:85vh; overflow-y:auto;
+  z-index:200;
+  box-shadow:0 0 60px rgba(100,200,255,0.1);
+}
+#popup h2 { color:#64c8ff; font-size:1.3rem; margin-bottom:14px; }
+.info-block {
+  background:rgba(100,200,255,0.06);
+  border-left:3px solid #64c8ff;
+  padding:12px 16px; border-radius:0 8px 8px 0;
+  color:#cce8ff; font-size:0.88rem;
+  line-height:1.7; margin-bottom:12px;
+}
+.cancer-block {
+  background:rgba(231,76,60,0.1);
+  border-left:3px solid #e74c3c;
+  padding:12px 16px; border-radius:0 8px 8px 0;
+  color:#ffaaaa; font-size:0.85rem;
+  line-height:1.6; margin-bottom:16px;
+}
+.synbio-block {
+  background:rgba(68,255,136,0.07);
+  border-left:3px solid #44ff88;
+  padding:12px 16px; border-radius:0 8px 8px 0;
+  color:#aaffcc; font-size:0.85rem;
+  line-height:1.6; margin-bottom:16px;
+}
+.close-btn {
+  background:transparent;
+  border:1px solid rgba(100,200,255,0.3);
+  color:#64c8ff; padding:8px 20px;
+  border-radius:8px; cursor:pointer;
+  font-size:0.88rem; margin-top:4px;
+}
+
+/* ── SynBio panel ── */
+#synbio-panel {
+  display:none; position:fixed;
+  top:50%; left:50%;
+  transform:translate(-50%,-50%);
+  background:rgba(15,17,23,0.97);
+  border:1px solid rgba(68,255,136,0.3);
+  border-radius:16px; padding:28px 32px;
+  max-width:580px; width:94%;
+  max-height:88vh; overflow-y:auto;
+  z-index:200;
+  box-shadow:0 0 60px rgba(68,255,136,0.08);
+}
+#synbio-panel h2 {
+  color:#44ff88; font-size:1.3rem; margin-bottom:6px;
+}
+#synbio-panel .subtitle {
+  color:rgba(255,255,255,0.35);
+  font-size:0.8rem; margin-bottom:20px;
+}
+
+.synbio-tabs {
+  display:flex; gap:8px; margin-bottom:20px;
+}
+.synbio-tab {
+  padding:7px 14px; border-radius:8px;
+  border:1px solid rgba(68,255,136,0.2);
+  background:transparent;
+  color:rgba(255,255,255,0.5);
+  cursor:pointer; font-size:0.8rem;
+  transition:all 0.2s;
+}
+.synbio-tab.active {
+  background:rgba(68,255,136,0.1);
+  border-color:#44ff88; color:#44ff88;
+}
+
+.circuit-gate {
+  display:inline-block;
+  background:rgba(170,68,255,0.15);
+  border:1px solid rgba(170,68,255,0.4);
+  color:#cc88ff; padding:4px 12px;
+  border-radius:20px; font-size:0.85rem;
+  font-weight:bold; margin:8px 0;
+}
+
+.target-card {
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:10px; padding:14px;
+  margin-bottom:10px;
+}
+.target-card .priority-badge {
+  display:inline-block;
+  padding:2px 10px; border-radius:10px;
+  font-size:0.75rem; font-weight:bold;
+  margin-bottom:8px;
+}
+.priority-High { background:rgba(231,76,60,0.2); color:#ff7766; }
+.priority-Medium { background:rgba(243,156,18,0.2); color:#ffbb44; }
+.priority-Low { background:rgba(46,204,113,0.2); color:#66ffaa; }
+
+.circuit-step {
+  display:flex; align-items:flex-start;
+  gap:14px; margin-bottom:16px;
+}
+.step-num {
+  width:28px; height:28px; border-radius:50%;
+  display:flex; align-items:center;
+  justify-content:center;
+  font-size:0.8rem; font-weight:bold;
+  flex-shrink:0; margin-top:2px;
+}
+.step-content h4 { color:white; font-size:0.9rem; margin-bottom:4px; }
+.step-content p {
+  color:rgba(255,255,255,0.5);
+  font-size:0.82rem; line-height:1.5;
+}
+.step-arrow {
+  text-align:center; color:rgba(255,255,255,0.2);
+  font-size:1.2rem; margin:0 0 8px 14px;
+}
+
+#loading-text {
+  color:#64c8ff; font-size:0.9rem;
+  text-align:center; padding:20px;
+  animation:pulse 1s infinite;
+}
+@keyframes pulse {
+  0%,100%{opacity:1} 50%{opacity:0.3}
+}
+
+#hint {
+  position:fixed; bottom:20px; left:50%;
+  transform:translateX(-50%);
+  color:rgba(255,255,255,0.25);
+  font-size:0.78rem; pointer-events:none;
+  white-space:nowrap;
+}
+</style>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+
+<!-- Top bar -->
+<div id="topbar">
+  <div>
+    <h1>🧬 IMMUNEPRINT — CELL EXPLORER</h1>
+    <p>Interactive 3D Cancer Cell</p>
+  </div>
+  <div style="color:rgba(255,255,255,0.3);font-size:0.78rem;text-align:right">
+    Data: TCGA-BRCA &nbsp;|&nbsp; 1081 patients
+  </div>
+</div>
+
+<!-- Mode tabs -->
+<div id="mode-tabs">
+  <button class="tab-btn active" onclick="setMode('explore')">
+    🔬 Explore Cell
+  </button>
+  <button class="tab-btn" onclick="setMode('synbio')">
+    ⚡ SynBio Mode
+  </button>
+</div>
+
+<!-- Patient selector -->
+<div id="patient-bar">
+  <label>Select Patient</label>
+  <select id="patient-select" onchange="onPatientChange()">
+    <option>Loading...</option>
+  </select>
+  <button id="synbio-btn" onclick="openSynbio()">
+    ⚡ Design Kill-Switch
+  </button>
+</div>
+
+<!-- Organelle popup -->
+<div id="popup">
+  <h2 id="popup-title"></h2>
+  <div id="popup-body"></div>
+  <button class="close-btn" onclick="closePopup()">Close</button>
+</div>
+
+<!-- SynBio panel -->
+<div id="synbio-panel">
+  <h2>⚡ Synthetic Biology Designer</h2>
+  <div class="subtitle" id="synbio-patient-label"></div>
+  <div class="synbio-tabs">
+    <button class="synbio-tab active" onclick="showSynbioTab('killswitch')">
+      🎯 Kill-Switch
+    </button>
+    <button class="synbio-tab" onclick="showSynbioTab('cart')">
+      🛡️ CAR-T Targets
+    </button>
+    <button class="synbio-tab" onclick="showSynbioTab('circuit')">
+      ⚙️ Circuit Flow
+    </button>
+  </div>
+  <div id="synbio-content"></div>
+  <button class="close-btn" onclick="closeSynbio()">Close</button>
+</div>
+
+<div id="hint">
+  🖱️ Drag to rotate &nbsp;|&nbsp; Scroll to zoom 
+  &nbsp;|&nbsp; Click organelles to explore
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script>
+const API = 'http://localhost:8000';
+let currentPatient = null;
+let currentMode = 'explore';
+let currentSynbioTab = 'killswitch';
+
+// ── Load patients ──────────────────────────────────────────────
+async function loadPatients() {
+  try {
+    const res = await fetch(`${API}/patients`);
+    const data = await res.json();
+    const sel = document.getElementById('patient-select');
+    sel.innerHTML = data.patients.slice(0, 200).map(
+      p => `<option value="${p}">${p}</option>`
+    ).join('');
+    currentPatient = data.patients[0];
+  } catch(e) {
+    document.getElementById('patient-select').innerHTML =
+      '<option>API not running</option>';
+  }
+}
+
+function onPatientChange() {
+  currentPatient = document.getElementById('patient-select').value;
+}
+
+function setMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('.tab-btn').forEach((b,i) => {
+    b.classList.toggle('active',
+      (mode==='explore' && i===0) || (mode==='synbio' && i===1)
+    );
+  });
+  document.getElementById('synbio-btn').style.display =
+    mode === 'synbio' ? 'block' : 'none';
+}
+
+// ── Three.js scene ─────────────────────────────────────────────
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(
+  60, window.innerWidth/window.innerHeight, 0.1, 1000
+);
+camera.position.set(0, 0, 22);
+
+const renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+// Lights
+scene.add(new THREE.AmbientLight(0x111122, 2));
+const pl1 = new THREE.PointLight(0x4488ff, 3, 50);
+pl1.position.set(10,10,10); scene.add(pl1);
+const pl2 = new THREE.PointLight(0xff4444, 2, 50);
+pl2.position.set(-10,-5,-10); scene.add(pl2);
+const pl3 = new THREE.PointLight(0x44ff88, 1.5, 40);
+pl3.position.set(0,10,-10); scene.add(pl3);
+
+// Stars
+const sg = new THREE.BufferGeometry();
+const sp = new Float32Array(3000*3);
+for(let i=0;i<sp.length;i++) sp[i]=(Math.random()-0.5)*200;
+sg.setAttribute('position', new THREE.BufferAttribute(sp,3));
+scene.add(new THREE.Points(sg,
+  new THREE.PointsMaterial({color:0xffffff,size:0.12,transparent:true,opacity:0.5})
+));
+
+// Cell membrane
+const memMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(10,32,32),
+  new THREE.MeshPhongMaterial({
+    color:0x224466, transparent:true,
+    opacity:0.06, side:THREE.BackSide
+  })
+);
+scene.add(memMesh);
+scene.add(new THREE.Mesh(
+  new THREE.SphereGeometry(10.05,24,24),
+  new THREE.MeshBasicMaterial({
+    color:0x336699, wireframe:true,
+    transparent:true, opacity:0.05
+  })
+));
+
+// Organelles
+const organelleData = [
+  {name:'Nucleus', emoji:'🔵', color:0x3388ff,
+   size:2.2, pos:[0,0,0], shape:'sphere'},
+  {name:'Mitochondria', emoji:'🔴', color:0xff4422,
+   size:0.9, pos:[3.5,1.5,1], shape:'ellipsoid'},
+  {name:'Mitochondria', emoji:'🔴', color:0xff4422,
+   size:0.8, pos:[-3,2,-1.5], shape:'ellipsoid'},
+  {name:'Ribosome', emoji:'🟡', color:0xffdd00,
+   size:0.35, pos:[2,-2,2], shape:'sphere'},
+  {name:'Ribosome', emoji:'🟡', color:0xffdd00,
+   size:0.35, pos:[-2,-1.5,3], shape:'sphere'},
+  {name:'Ribosome', emoji:'🟡', color:0xffdd00,
+   size:0.35, pos:[1,3,-2], shape:'sphere'},
+  {name:'Golgi Apparatus', emoji:'🟢', color:0x44ff88,
+   size:1.1, pos:[-2.5,-1,2], shape:'torus'},
+  {name:'Lysosome', emoji:'🟠', color:0xff8800,
+   size:0.55, pos:[3,-2.5,-1], shape:'sphere'},
+  {name:'Lysosome', emoji:'🟠', color:0xff8800,
+   size:0.5, pos:[-3.5,-2,1.5], shape:'sphere'},
+  {name:'Endoplasmic Reticulum', emoji:'🟣', color:0xaa44ff,
+   size:1.3, pos:[1.5,2.5,-2], shape:'torus'},
+  {name:'Cell Membrane', emoji:'⚪', color:0xaaccff,
+   size:0.4, pos:[7,2,3], shape:'sphere'},
+];
+
+const cellGroup = new THREE.Group();
+const meshes = [];
+
+organelleData.forEach(org => {
+  let geo;
+  if(org.shape==='torus')
+    geo = new THREE.TorusGeometry(org.size, org.size*0.35, 12, 24);
+  else
+    geo = new THREE.SphereGeometry(org.size, 24, 24);
+
+  const mat = new THREE.MeshPhongMaterial({
+    color:org.color, emissive:org.color,
+    emissiveIntensity:0.3,
+    transparent:true, opacity:0.85, shininess:80
+  });
+
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(...org.pos);
+  mesh.userData = {
+    organelle: org,
+    originalPos: [...org.pos],
+    floatOffset: Math.random()*Math.PI*2,
+    floatSpeed: 0.3+Math.random()*0.4,
+    floatRadius: 0.2+Math.random()*0.3,
+    rotSpeed: (Math.random()-0.5)*0.02
+  };
+
+  cellGroup.add(mesh);
+  meshes.push(mesh);
+});
+scene.add(cellGroup);
+
+// ── Raycasting ─────────────────────────────────────────────────
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let hoveredMesh = null;
+let isDragging = false;
+let dragDelta = 0;
+let prevMouse = {x:0, y:0};
+
+renderer.domElement.addEventListener('mousedown', e => {
+  dragDelta = 0;
+  prevMouse = {x:e.clientX, y:e.clientY};
+});
+
+renderer.domElement.addEventListener('mousemove', e => {
+  const dx = e.clientX-prevMouse.x;
+  const dy = e.clientY-prevMouse.y;
+
+  if(e.buttons===1) {
+    dragDelta += Math.abs(dx)+Math.abs(dy);
+    isDragging = dragDelta > 5;
+    cellGroup.rotation.y += dx*0.005;
+    cellGroup.rotation.x += dy*0.005;
+    prevMouse = {x:e.clientX, y:e.clientY};
+  }
+
+  // Hover glow
+  mouse.x = (e.clientX/window.innerWidth)*2-1;
+  mouse.y = -(e.clientY/window.innerHeight)*2+1;
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(meshes);
+
+  if(hoveredMesh) {
+    hoveredMesh.material.emissiveIntensity = 0.3;
+    document.body.style.cursor = 'default';
+    hoveredMesh = null;
+  }
+  if(hits.length > 0) {
+    hoveredMesh = hits[0].object;
+    hoveredMesh.material.emissiveIntensity = 0.9;
+    document.body.style.cursor = 'pointer';
+  }
+});
+
+renderer.domElement.addEventListener('click', e => {
+  if(isDragging) return;
+  mouse.x = (e.clientX/window.innerWidth)*2-1;
+  mouse.y = -(e.clientY/window.innerHeight)*2+1;
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(meshes);
+  if(hits.length > 0)
+    openOrganellePopup(hits[0].object.userData.organelle);
+});
+
+window.addEventListener('wheel', e => {
+  camera.position.z = Math.max(
+    8, Math.min(35, camera.position.z + e.deltaY*0.02)
+  );
+});
+
+// ── Organelle popup ────────────────────────────────────────────
+async function openOrganellePopup(org) {
+  const popup = document.getElementById('popup');
+  document.getElementById('popup-title').innerHTML =
+    `${org.emoji} ${org.name}`;
+  document.getElementById('popup-body').innerHTML =
+    '<div id="loading-text">Loading...</div>';
+  popup.style.display = 'block';
+
+  try {
+    const res = await fetch(
+      `${API}/organelle/${encodeURIComponent(org.name)}`
+    );
+    const d = await res.json();
+    document.getElementById('popup-body').innerHTML = `
+      <div class="info-block">
+        <strong>What it does:</strong> ${d.description}
+      </div>
+      <div class="info-block">
+        💡 <strong>Fun fact:</strong> ${d.fun_fact}
+      </div>
+      <div class="cancer-block">
+        🔬 <strong>In cancer cells:</strong> ${d.cancer_connection}
+      </div>
+    `;
+  } catch(err) {
+    document.getElementById('popup-body').innerHTML =
+      '<div class="info-block">Could not load — is the API running?</div>';
+  }
+}
+
+function closePopup() {
+  document.getElementById('popup').style.display = 'none';
+}
+
+// ── SynBio panel ───────────────────────────────────────────────
+async function openSynbio() {
+  if(!currentPatient) return;
+  document.getElementById('synbio-panel').style.display = 'block';
+  document.getElementById('synbio-patient-label').textContent =
+    `Patient: ${currentPatient}`;
+  showSynbioTab('killswitch');
+}
+
+function closeSynbio() {
+  document.getElementById('synbio-panel').style.display = 'none';
+}
+
+async function showSynbioTab(tab) {
+  currentSynbioTab = tab;
+  document.querySelectorAll('.synbio-tab').forEach((b,i) => {
+    b.classList.toggle('active',
+      (tab==='killswitch'&&i===0) ||
+      (tab==='cart'&&i===1) ||
+      (tab==='circuit'&&i===2)
+    );
+  });
+
+  const content = document.getElementById('synbio-content');
+  content.innerHTML = '<div id="loading-text">Loading...</div>';
+
+  if(tab === 'killswitch') {
+    try {
+      const res = await fetch(`${API}/killswitch/${currentPatient}`);
+      const d = await res.json();
+      content.innerHTML = `
+        <div class="synbio-block">
+          <strong>Circuit Name:</strong> ${d.circuit_name}
+        </div>
+        <div style="margin-bottom:12px">
+          <span class="circuit-gate">${d.logic_gate} Gate</span>
+        </div>
+        <div class="target-card">
+          <div style="color:rgba(255,255,255,0.5);font-size:0.75rem;
+                      margin-bottom:6px">SENSOR 1</div>
+          <div style="color:white;font-size:0.9rem;margin-bottom:4px">
+            ${d.sensor_1?.gene}
+          </div>
+          <div style="color:rgba(255,255,255,0.45);font-size:0.82rem">
+            Detects ${d.sensor_1?.plain} — 
+            condition: <strong style="color:#64c8ff">
+            ${d.sensor_1?.condition}</strong>
+          </div>
+        </div>
+        <div class="target-card">
+          <div style="color:rgba(255,255,255,0.5);font-size:0.75rem;
+                      margin-bottom:6px">SENSOR 2</div>
+          <div style="color:white;font-size:0.9rem;margin-bottom:4px">
+            ${d.sensor_2?.gene}
+          </div>
+          <div style="color:rgba(255,255,255,0.45);font-size:0.82rem">
+            Detects ${d.sensor_2?.plain} — 
+            condition: <strong style="color:#64c8ff">
+            ${d.sensor_2?.condition}</strong>
+          </div>
+        </div>
+        <div class="target-card">
+          <div style="color:rgba(255,255,255,0.5);font-size:0.75rem;
+                      margin-bottom:6px">ACTUATOR (KILL SWITCH)</div>
+          <div style="color:#ff7766;font-size:0.95rem;font-weight:bold;
+                      margin-bottom:4px">${d.actuator}</div>
+          <div style="color:rgba(255,255,255,0.45);font-size:0.82rem">
+            ${d.actuator_plain}
+          </div>
+        </div>
+        <div class="synbio-block">
+          <strong>How it works:</strong> ${d.how_it_works}
+        </div>
+        <div class="info-block">
+          <strong>Why it's safe:</strong> ${d.why_safe}
+        </div>
+        <div class="cancer-block">
+          <strong>Scientific novelty:</strong> ${d.novelty}
+        </div>
+      `;
+    } catch(e) {
+      content.innerHTML =
+        '<div class="info-block">Could not load kill-switch data.</div>';
+    }
+  }
+
+  else if(tab === 'cart') {
+    try {
+      const res = await fetch(`${API}/cart/${currentPatient}`);
+      const d = await res.json();
+      content.innerHTML = `
+        <div class="synbio-block" style="margin-bottom:16px">
+          ${d.plain_explanation}
+        </div>
+        ${d.targets.map(t => `
+          <div class="target-card">
+            <span class="priority-badge priority-${t.priority}">
+              ${t.priority} Priority
+            </span>
+            <div style="color:white;font-weight:bold;margin-bottom:4px">
+              ${t.target}
+            </div>
+            <div style="color:rgba(255,255,255,0.5);font-size:0.82rem;
+                        margin-bottom:6px">${t.therapy}</div>
+            <div style="display:flex;justify-content:space-between;
+                        align-items:center">
+              <span style="color:rgba(255,255,255,0.35);font-size:0.78rem">
+                ${t.mechanism}
+              </span>
+              <span style="color:#64c8ff;font-size:0.8rem">
+                Evasion score: ${t.evasion_score}/10
+              </span>
+            </div>
+            <div style="color:rgba(255,255,255,0.3);font-size:0.75rem;
+                        margin-top:4px">Stage: ${t.stage}</div>
+          </div>
+        `).join('')}
+      `;
+    } catch(e) {
+      content.innerHTML =
+        '<div class="info-block">Could not load CAR-T data.</div>';
+    }
+  }
+
+  else if(tab === 'circuit') {
+    try {
+      const res = await fetch(`${API}/circuit/${currentPatient}`);
+      const d = await res.json();
+      const colors = ['#3388ff','#aa44ff','#ff4422','#ff8800'];
+      content.innerHTML = `
+        <div class="synbio-block" style="margin-bottom:20px">
+          Showing circuit flow for dominant evasion mechanism:
+          <strong>${d.top_mechanism}</strong> 
+          (score: ${d.top_score}/10)
+        </div>
+        ${d.circuit_steps.map((step, i) => `
+          <div class="circuit-step">
+            <div class="step-num"
+                 style="background:${colors[i]}22;
+                        border:1px solid ${colors[i]};
+                        color:${colors[i]}">
+              ${step.step}
+            </div>
+            <div class="step-content">
+              <h4>${step.label}</h4>
+              <p>${step.plain}</p>
+            </div>
+          </div>
+          ${i < d.circuit_steps.length-1 ?
+            '<div class="step-arrow">↓</div>' : ''}
+        `).join('')}
+      `;
+    } catch(e) {
+      content.innerHTML =
+        '<div class="info-block">Could not load circuit data.</div>';
+    }
+  }
+}
+
+// ── Animation ──────────────────────────────────────────────────
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const t = clock.getElapsedTime();
+
+  meshes.forEach(mesh => {
+    const d = mesh.userData;
+    mesh.position.y = d.originalPos[1] +
+      Math.sin(t*d.floatSpeed + d.floatOffset)*d.floatRadius;
+    mesh.position.x = d.originalPos[0] +
+      Math.cos(t*d.floatSpeed*0.7 + d.floatOffset)*d.floatRadius*0.5;
+    mesh.rotation.x += d.rotSpeed;
+    mesh.rotation.y += d.rotSpeed*0.7;
+  });
+
+  if(!isDragging) cellGroup.rotation.y += 0.0012;
+
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ── Init ───────────────────────────────────────────────────────
+loadPatients();
+setMode('explore');
+</script>
+</body>
+</html>
